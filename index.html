@@ -3,17 +3,16 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Chamador de Bingo Infantil</title>
+    <title>Chamador de Bingo Infantil (Vue.js)</title>
     <!-- Carregar Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Carregar React e Babel -->
-    <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
-    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
-    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     
-    <!-- Carregar Dependências do PDF (jsPDF e html2canvas) -->
+    <!-- Carregar Vue 3 (em vez de React e Babel) -->
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    
+    <!-- Carregar Dependências do PDF (apenas jsPDF é necessário agora) -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <!-- html2canvas foi removido -->
 
     <style>
         /* Estilos globais para uma fonte mais arredondada (fallback) */
@@ -21,26 +20,113 @@
             font-family: 'Nunito', 'Inter', sans-serif; /* Tenta carregar Nunito (arredondada), se não, Inter */
         }
         @import url('https://fonts.googleapis.com/css2?family=Nunito:wght@700;900&display=swap');
+        [v-cloak] { display: none; }
     </style>
 </head>
 <body class="bg-blue-100">
-    <!-- Contém a aplicação React -->
-    <div id="root"></div>
+    
+    <!-- Contém a aplicação Vue -->
+    <div id="app" v-cloak>
 
-    <!-- 
-      Este container está oculto. 
-      Serve apenas para renderizar os cartões para que o html2canvas 
-      os possa "fotografar" e colocar no PDF.
-      É populado pelo componente App.
-    -->
+        <!-- Container principal (mobile-first) -->
+        <div class="min-h-screen p-4 flex flex-col items-center">
+            
+            <!-- O componente Modal (Popup) -->
+            <print-modal 
+                :is-open="isModalOpen" 
+                @close="isModalOpen = false" 
+                @generate="handleGenerateAndPrint">
+            </print-modal>
+              
+            <div class="w-full max-w-md mx-auto bg-white shadow-2xl rounded-3xl p-6 flex flex-col gap-6">
+
+                <h1 class="text-4xl font-extrabold text-blue-600 text-center">
+                  Bingo Infantil
+                </h1>
+
+                <!-- --- Secção do Sorteio --- -->
+                <div class="flex flex-col items-center gap-4">
+                  
+                  <!-- O Número Sorteado -->
+                  <div class="w-48 h-48 rounded-full flex flex-col items-center justify-center shadow-inner transition-colors duration-300"
+                       :class="{'bg-gray-200': nextNumber === null, 'bg-yellow-400': nextNumber !== null}">
+                    
+                    <span v-if="letter" class="text-4xl font-bold text-black opacity-70">
+                        {{ letter }}
+                    </span>
+                    
+                    <span class="font-extrabold"
+                          :class="{
+                            'text-4xl text-red-600': nextNumber === 'FIM!', 
+                            'text-8xl text-black': nextNumber !== 'FIM!'
+                          }">
+                      {{ nextNumber === null ? '...' : nextNumber }}
+                    </span>
+                  </div>
+                  
+                  <p class="text-lg text-gray-500 font-semibold">
+                    Números em falta: {{ availableNumbers.length }}
+                  </p>
+
+                  <!-- Botões Principais -->
+                  <button
+                    @click="callNextNumber"
+                    :disabled="availableNumbers.length === 0"
+                    class="w-full py-4 bg-green-500 text-white font-bold text-2xl rounded-full shadow-lg hover:bg-green-600 transition duration-300 disabled:opacity-50 disabled:cursor-not-allowed transform active:scale-95"
+                  >
+                    {{ callButtonText }}
+                  </button>
+                  <button
+                    @click="handleReset"
+                    class="w-full py-3 bg-red-500 text-white font-semibold text-xl rounded-full shadow-lg hover:bg-red-600 transition duration-300 transform active:scale-95"
+                  >
+                    Reiniciar Jogo
+                  </button>
+                </div>
+
+                <!-- --- Últimos Sorteados --- -->
+                <div v-if="calledNumbers.length > 0" class="border-t-2 border-gray-100 pt-4">
+                  <h3 class="text-lg font-bold text-gray-600 mb-3 text-center">
+                    Últimos Sorteados:
+                  </h3>
+                  <div class="flex flex-wrap gap-2 justify-center">
+                    <div 
+                      v-for="(number, index) in last5Called"
+                      :key="index"
+                      class="w-12 h-12 bg-blue-500 text-white rounded-full flex items-center justify-center font-bold text-lg shadow-md"
+                    >
+                      {{ number }}
+                    </div>
+                  </div>
+                </div>
+
+                <!-- --- Botão de Impressão --- -->
+                <div class="border-t-2 border-gray-100 pt-4 mt-2">
+                  <button
+                    @click="isModalOpen = true"
+                    :disabled="isPrinting"
+                    class="w-full py-3 bg-purple-600 text-white font-bold text-xl rounded-full shadow-lg hover:bg-purple-700 transition duration-300 transform active:scale-95 disabled:opacity-50 disabled:cursor-wait"
+                  >
+                    {{ isPrinting ? 'A Gerar PDF...' : '🖨️ Imprimir Cartões' }}
+                  </button>
+                </div>
+
+            </div>
+              
+            <!-- Container de Impressão Oculto e componente BingoCardPrint foram removidos -->
+
+        </div>
+    </div> <!-- Fim de #app -->
+
+    <!-- Container oculto de impressão (agora vazio, mas mantido por precaução no DOM) -->
     <div id="print-container" class="absolute -left-[9999px] top-0 w-0 h-0 overflow-hidden"></div>
 
-    <script type="text/babel">
-        const { useState, useEffect, useCallback, useMemo } = React;
+    <script>
+        // --- Constantes Globais e Helpers ---
+        const { createApp, ref, computed, nextTick } = Vue;
         
-        // As bibliotecas jsPDF e html2canvas estão agora disponíveis globalmente
+        // As bibliotecas jsPDF está disponível globalmente
         const jsPDF = window.jspdf ? window.jspdf.jsPDF : null;
-        const html2canvas = window.html2canvas || null;
         
         // --- Constantes do Bingo (75 Bolas) ---
         const BINGO_LETTERS = ['B', 'I', 'N', 'G', 'O'];
@@ -53,7 +139,7 @@
         ];
         const TOTAL_NUMBERS = 75;
 
-        // --- Utilidade para Gerar Cartões ---
+        // --- Utilidade para Gerar Cartões (Helper) ---
         const generateCard = () => {
           const card = [];
           BINGO_LETTERS.forEach((letter, colIndex) => {
@@ -74,346 +160,312 @@
           });
           return card;
         };
-
-        // --- Componente de Cartão (Apenas para Impressão) ---
-        // Este componente é renderizado no 'print-container' oculto
-        const BingoCardPrint = ({ cardData, cardIndex }) => {
-          return (
-            <div 
-                id={`card-${cardIndex}`} 
-                // Estilos otimizados para PDF (preto e branco, legível)
-                className="p-3 bg-white border-2 border-black w-full"
-                style={{ width: '300px' }} // Largura fixa para html2canvas
-            >
-              <h3 className="text-center text-xl font-extrabold mb-2 text-black">
-                Cartão n.º {cardIndex + 1}
-              </h3>
-              
-              <div className="grid grid-cols-5 text-center font-extrabold text-2xl mb-1 border-b-2 border-black">
-                {BINGO_LETTERS.map(letter => (
-                  <div key={letter} className="p-1 text-black">{letter}</div>
-                ))}
-              </div>
-
-              <div className="grid grid-cols-5 gap-px" style={{ aspectRatio: '1/1' }}>
-                {[...Array(5)].map((_, rowIndex) => (
-                  [...Array(5)].map((__, colIndex) => {
-                    const column = cardData[colIndex];
-                    const value = column.numbers[rowIndex];
-                    
-                    const isFree = value === 'LIVRE';
-                    let cellStyle = 'h-full flex items-center justify-center text-lg font-bold border border-black';
-                    if (isFree) {
-                      cellStyle += ' bg-gray-200 text-black';
-                    } else {
-                      cellStyle += ' bg-white text-black';
-                    }
-
-                    return (
-                       // FIX: Adicionada a prop 'key' única para resolver o aviso do React
-                       <div key={`${cardIndex}-${colIndex}-${rowIndex}`} className={`${cellStyle} aspect-square`}>
-                         {value}
-                       </div>
-                    );
-                  })
-                ))}
-              </div>
-            </div>
-          );
-        };
         
+        // --- Criação da Aplicação Vue ---
+        const app = createApp({
+          setup() {
+            // --- Estado Reativo (Refs) ---
+            const bingoCards = ref([]); 
+            const calledNumbers = ref([]);
+            const nextNumber = ref(null);
+            const availableNumbers = ref(
+              Array.from({ length: TOTAL_NUMBERS }, (_, i) => i + 1)
+            );
+            const isPrinting = ref(false); 
+            const isModalOpen = ref(false);
+
+            // --- Estado Derivado (Computeds) ---
+            const last5Called = computed(() => {
+              return calledNumbers.value.slice(-5).reverse();
+            });
+
+            const getLetterForNumber = (number) => {
+              if (number === null || typeof number !== 'number') return '';
+              for (let i = 0; i < BINGO_RANGES.length; i++) {
+                const [min, max] = BINGO_RANGES[i];
+                if (number >= min && number <= max) {
+                  return BINGO_LETTERS[i];
+                }
+              }
+              return '';
+            };
+
+            const letter = computed(() => getLetterForNumber(nextNumber.value));
+
+            const callButtonText = computed(() => {
+              if (availableNumbers.value.length === TOTAL_NUMBERS) return 'COMEÇAR!';
+              if (availableNumbers.value.length === 0) return 'FIM!';
+              return 'SORTEAR';
+            });
+            
+            // --- Funções (Métodos) ---
+            const callNextNumber = () => {
+              if (availableNumbers.value.length === 0) {
+                nextNumber.value = 'FIM!';
+                return;
+              }
+
+              const randomIndex = Math.floor(Math.random() * availableNumbers.value.length);
+              const newNumber = availableNumbers.value[randomIndex];
+
+              nextNumber.value = newNumber;
+              calledNumbers.value.push(newNumber);
+              
+              availableNumbers.value.splice(randomIndex, 1);
+            };
+            
+            const handleReset = () => {
+              calledNumbers.value = [];
+              nextNumber.value = null;
+              availableNumbers.value = Array.from({ length: TOTAL_NUMBERS }, (_, i) => i + 1);
+              bingoCards.value = []; // Limpa os cartões
+            };
+            
+            // --- Lógica de Impressão (Puro jsPDF) ---
+            const handleGenerateAndPrint = async (numCardsToPrint) => {
+                if (isNaN(numCardsToPrint) || numCardsToPrint <= 0) {
+                    isModalOpen.value = false;
+                    return;
+                }
+
+                isModalOpen.value = false;
+                isPrinting.value = true;
+
+                // 1. Gerar os cartões (apenas dados)
+                const newCards = Array.from({ length: numCardsToPrint }, () => generateCard());
+                bingoCards.value = newCards; 
+
+                // 2. Chamar a impressão (síncrona)
+                await printCardsJsPDF();
+                
+                isPrinting.value = false;
+                bingoCards.value = []; // Limpa a memória após a impressão
+            };
+
+            const printCardsJsPDF = async () => {
+              if (!jsPDF) {
+                  console.error("jsPDF não está carregado.");
+                  isPrinting.value = false;
+                  return;
+              }
+
+              const doc = new jsPDF({
+                orientation: 'portrait',
+                unit: 'mm',
+                format: 'a4'
+              });
+
+              const pageW = 210;
+              const pageH = 297;
+              const margin = 10;
+              
+              // --- FIX: Recalculando dimensões para garantir 5 colunas quadradas ---
+              const cardW = (pageW - 3 * margin) / 2; // Largura do cartão: (210 - 30) / 2 = 90 mm
+              const headerH = 8; // Altura do cabeçalho BINGO
+              const cellS = cardW / 5; // Tamanho da célula (Largura e Altura): 90mm / 5 = 18mm (Garante 5 colunas)
+              const gridH = cellS * 5; // Altura da grade: 90 mm
+              const cardH = headerH + gridH + 2; // Altura total do cartão (8mm header + 90mm grid + 2mm padding) ~100mm
+              
+              // Posições ajustadas com a nova cardH fixa
+              const positions = [
+                  { x: margin, y: margin }, // Canto Sup Esquerdo
+                  { x: margin * 2 + cardW, y: margin }, // Canto Sup Direito
+                  { x: margin, y: margin + cardH + margin }, // Canto Inf Esquerdo
+                  { x: margin * 2 + cardW, y: margin + cardH + margin }, // Canto Inf Direito
+              ];
+              
+              const cardsToPrint = bingoCards.value;
+              let cardsOnPage = 0;
+
+              // Itera pelos dados dos cartões
+              for (let i = 0; i < cardsToPrint.length; i++) {
+                  const cardData = cardsToPrint[i];
+                  
+                  const posIndex = cardsOnPage % 4; 
+                  
+                  if (posIndex === 0 && i > 0) {
+                      doc.addPage();
+                  }
+                  
+                  const { x: startX, y: startY } = positions[posIndex];
+                  
+                  // --- 1. Desenhar Borda do Cartão ---
+                  doc.setLineWidth(0.5);
+                  doc.setDrawColor(0, 0, 0); // Preto
+                  doc.setLineCap('square');
+                  doc.rect(startX, startY, cardW, cardH, 'S'); // 'S' - apenas contorno
+                  
+                  // --- 2. Título (Cartão n.º X) ---
+                  doc.setFontSize(12);
+                  doc.setFont('Helvetica', 'bold');
+                  doc.setTextColor(0, 0, 0); // Preto
+                  doc.text(`Cartão n.º ${i + 1}`, startX + cardW / 2, startY + 5, { align: 'center' });
+
+                  // --- 3. Cabeçalho BINGO ---
+                  let currentY = startY + 7; // Começa um pouco abaixo do título
+                  
+                  for (let colIndex = 0; colIndex < BINGO_LETTERS.length; colIndex++) {
+                      const letter = BINGO_LETTERS[colIndex];
+                      const currentX = startX + colIndex * cellS;
+                      
+                      // Desenha o fundo e borda da célula do cabeçalho
+                      doc.setDrawColor(0, 0, 0);
+                      doc.setFillColor(50, 50, 50); // Cinza Escuro
+                      doc.rect(currentX, currentY, cellS, headerH, 'FD'); // Fill and Draw
+                      
+                      // Escreve a letra (B, I, N, G, O)
+                      doc.setTextColor(255, 255, 255); // Cor branca para o texto do cabeçalho
+                      doc.setFontSize(16);
+                      doc.setFont('Helvetica', 'bold');
+                      doc.text(letter, currentX + cellS / 2, currentY + headerH / 2 + 1.5, { align: 'center' }); 
+                      
+                      doc.setTextColor(0, 0, 0); // Reset para preto para o resto do cartão
+                  }
+                  
+                  // --- 4. Grid e Números ---
+                  currentY += headerH; // Move para a primeira linha da grid
+                  
+                  for (let rowIndex = 0; rowIndex < 5; rowIndex++) {
+                      for (let colIndex = 0; colIndex < 5; colIndex++) {
+                          const currentX = startX + colIndex * cellS;
+                          const value = cardData[colIndex].numbers[rowIndex];
+                          
+                          // Desenha a célula (borda e preenchimento)
+                          doc.setDrawColor(0, 0, 0);
+                          
+                          if (value === 'LIVRE') {
+                              doc.setFillColor(200, 200, 200); // Cinza para LIVRE
+                          } else {
+                              doc.setFillColor(255, 255, 255); // Branco
+                          }
+                          
+                          doc.rect(currentX, currentY, cellS, cellS, 'FD'); 
+                          
+                          // Escreve o valor
+                          // Ajuste o tamanho da fonte para o valor 'LIVRE'
+                          doc.setFontSize(value === 'LIVRE' ? 10 : 14); 
+                          doc.setFont('Helvetica', 'normal');
+                          doc.text(String(value), currentX + cellS / 2, currentY + cellS / 2 + 1.5, { align: 'center' });
+                      }
+                      currentY += cellS;
+                  }
+
+                  cardsOnPage++;
+              }
+
+              doc.save('Cartoes_Bingo_Puro_JS_Corrigido.pdf');
+            };
+
+            // Expor tudo para o template
+            return {
+              bingoCards,
+              calledNumbers,
+              nextNumber,
+              availableNumbers,
+              isPrinting,
+              isModalOpen,
+              last5Called,
+              letter,
+              callButtonText,
+              callNextNumber,
+              handleReset,
+              handleGenerateAndPrint
+            };
+          }
+        });
+
         // --- Componente Modal (Popup) ---
-        const PrintModal = ({ isOpen, onClose, onGenerate }) => {
-          if (!isOpen) return null;
+        app.component('print-modal', {
+          props: {
+            isOpen: Boolean
+          },
+          emits: ['close', 'generate'],
+          setup(props, { emit }) {
+            const cardCount = ref(4);
+            const minCards = 1;
+            const maxCards = 100;
+            
+            const handleSubmit = () => {
+               emit('generate', cardCount.value);
+            };
+            
+            const handleClose = () => {
+                emit('close');
+            };
 
-          const [cardCount, setCardCount] = useState(4);
-          
-          const handleSubmit = () => {
-             onGenerate(cardCount);
-          };
-
-          return (
-            <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
-              <div className="bg-white rounded-2xl p-6 shadow-xl w-full max-w-sm transition-transform transform scale-100">
-                <h3 className="text-2xl font-bold mb-4 text-gray-800">Imprimir Cartões</h3>
-                <p className="mb-4 text-gray-600">Quantos cartões quer gerar para o PDF?</p>
-                <input
-                  id="card-count-input"
-                  type="number"
-                  min="1"
-                  max="100" // Limite
-                  value={cardCount}
-                  onChange={(e) => setCardCount(Math.max(1, Math.min(100, Number(e.target.value))))}
-                  className="w-full p-3 border-2 border-gray-300 rounded-lg text-center text-2xl font-bold"
-                />
-                <div className="flex flex-col sm:flex-row gap-4 mt-6">
+            const incrementCount = () => {
+                cardCount.value = Math.min(maxCards, cardCount.value + 1);
+            };
+            
+            const decrementCount = () => {
+                cardCount.value = Math.max(minCards, cardCount.value - 1);
+            };
+            
+            return {
+                cardCount,
+                minCards,
+                maxCards,
+                handleSubmit,
+                handleClose,
+                incrementCount,
+                decrementCount
+            };
+          },
+          template: `
+            <div v-if="isOpen" class="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+              <div class="bg-white rounded-2xl p-6 shadow-xl w-full max-w-sm transition-transform transform scale-100">
+                <h3 class="text-2xl font-bold mb-4 text-gray-800">Imprimir Cartões</h3>
+                <p class="mb-4 text-gray-600">Quantos cartões quer gerar para o PDF?</p>
+                
+                <div class="flex items-center justify-center gap-4">
+                  <button
+                    @click="decrementCount"
+                    :disabled="cardCount === minCards"
+                    class="w-16 h-16 bg-red-500 text-white font-bold text-4xl rounded-full shadow-lg hover:bg-red-600 transition disabled:opacity-50 active:scale-95"
+                  >
+                    -
+                  </button>
+                  
+                  <input
+                    type="text"
+                    readOnly 
+                    :value="cardCount"
+                    class="w-24 p-3 border-2 border-gray-300 rounded-lg text-center text-4xl font-bold"
+                  />
+                  
+                  <button
+                    @click="incrementCount"
+                    :disabled="cardCount === maxCards"
+                    class="w-16 h-16 bg-green-500 text-white font-bold text-4xl rounded-full shadow-lg hover:bg-green-600 transition disabled:opacity-50 active:scale-95"
+                  >
+                    +
+                  </button>
+                </div>
+                
+                <div class="flex flex-col sm:flex-row gap-4 mt-6">
                   <button 
-                    onClick={onClose} 
-                    className="w-full px-4 py-3 bg-gray-300 text-gray-800 font-bold rounded-full hover:bg-gray-400 transition duration-200 text-lg"
+                    @click="handleClose" 
+                    class="w-full px-4 py-3 bg-gray-300 text-gray-800 font-bold rounded-full hover:bg-gray-400 transition duration-200 text-lg"
                   >
                     Cancelar
                   </button>
                   <button 
-                    onClick={handleSubmit} 
-                    className="w-full px-4 py-3 bg-green-500 text-white font-bold rounded-full hover:bg-green-600 transition duration-200 text-lg"
+                    @click="handleSubmit" 
+                    class="w-full px-4 py-3 bg-blue-600 text-white font-bold rounded-full hover:bg-blue-700 transition duration-200 text-lg"
                   >
                     Gerar PDF
                   </button>
                 </div>
               </div>
             </div>
-          );
-        };
+          `
+        });
 
+        // O componente 'bingo-card-print' foi removido pois já não é necessário
 
-        // --- Componente Principal da Aplicação ---
-        const App = () => {
-          // Estado dos cartões (para o container de impressão)
-          const [bingoCards, setBingoCards] = useState([]); 
-          
-          // Estado do Sorteio
-          const [calledNumbers, setCalledNumbers] = useState([]);
-          const [nextNumber, setNextNumber] = useState(null);
-          const [availableNumbers, setAvailableNumbers] = useState(
-            Array.from({ length: TOTAL_NUMBERS }, (_, i) => i + 1)
-          );
-          
-          // Estado dos Popups e Impressão
-          const [isPrinting, setIsPrinting] = useState(false); 
-          const [isModalOpen, setIsModalOpen] = useState(false);
-          
-          // Use um Set para pesquisas rápidas
-          const calledNumbersSet = useMemo(() => new Set(calledNumbers), [calledNumbers]);
-
-          // --- Lógica do Sorteio ---
-          const callNextNumber = () => {
-            if (availableNumbers.length === 0) {
-              setNextNumber('FIM!');
-              return;
-            }
-
-            const randomIndex = Math.floor(Math.random() * availableNumbers.length);
-            const newNumber = availableNumbers[randomIndex];
-
-            setNextNumber(newNumber);
-            setCalledNumbers(prev => [...prev, newNumber]);
-            
-            const newAvailable = [...availableNumbers];
-            newAvailable.splice(randomIndex, 1);
-            setAvailableNumbers(newAvailable);
-          };
-          
-          const handleReset = () => {
-            setCalledNumbers([]);
-            setNextNumber(null);
-            setAvailableNumbers(Array.from({ length: TOTAL_NUMBERS }, (_, i) => i + 1));
-            setBingoCards([]); // Limpa os cartões ocultos
-          };
-          
-          const getLetterForNumber = (number) => {
-            if (number === null || typeof number !== 'number') return '';
-            for (let i = 0; i < BINGO_RANGES.length; i++) {
-              const [min, max] = BINGO_RANGES[i];
-              if (number >= min && number <= max) {
-                return BINGO_LETTERS[i];
-              }
-            }
-            return '';
-          };
-          
-          // --- Lógica de Impressão (Chamada pelo Modal) ---
-          
-          const handleGenerateAndPrint = (numCardsToPrint) => {
-              if (isNaN(numCardsToPrint) || numCardsToPrint <= 0) {
-                  setIsModalOpen(false);
-                  return;
-              }
-
-              setIsModalOpen(false);
-              setIsPrinting(true);
-
-              // 1. Gerar os cartões
-              const newCards = Array.from({ length: numCardsToPrint }, () => generateCard());
-              
-              // 2. Colocá-los no estado (isto irá renderizá-los no div oculto)
-              setBingoCards(newCards);
-
-              // 3. Esperar que o React renderize os cartões no div oculto e SÓ DEPOIS chamar o PDF
-              setTimeout(() => {
-                  printCardsJsPDF(newCards.length); 
-              }, 150); // 150ms de segurança para o DOM atualizar
-          };
-          
-          const printCardsJsPDF = async (cardCount) => {
-            if (!jsPDF || !html2canvas) {
-                console.error("jsPDF ou html2canvas não estão carregados.");
-                setIsPrinting(false);
-                return;
-            }
-
-            const doc = new jsPDF({
-              orientation: 'portrait',
-              unit: 'mm',
-              format: 'a4'
-            });
-
-            // A4 (210 x 297 mm)
-            const pageW = 210;
-            const pageH = 297;
-            const margin = 10;
-            
-            // Layout 2x2 (4 cartões por página)
-            const cardW = (pageW - 3 * margin) / 2; // ~90mm
-            const cardH = (pageH - 3 * margin) / 2.3; // ~120mm
-            
-            const positions = [
-                { x: margin, y: margin }, // Canto Sup Esquerdo
-                { x: margin + cardW + margin, y: margin }, // Canto Sup Direito
-                { x: margin, y: margin + cardH + margin }, // Canto Inf Esquerdo
-                { x: margin + cardW + margin, y: margin + cardH + margin }, // Canto Inf Direito
-            ];
-
-            let cardsOnPage = 0;
-            
-            for (let cardIndex = 0; cardIndex < cardCount; cardIndex++) {
-                const cardElement = document.getElementById(`card-${cardIndex}`);
-                if (!cardElement) continue;
-                
-                const canvas = await html2canvas(cardElement, { scale: 3, logging: false, useCORS: true });
-                const imgData = canvas.toDataURL('image/png');
-                
-                const pos = cardsOnPage % 4; 
-                
-                // Se for o primeiro cartão de uma nova página, adiciona a página
-                if (pos === 0 && cardIndex > 0) {
-                    doc.addPage();
-                }
-
-                doc.addImage(imgData, 'PNG', positions[pos].x, positions[pos].y, cardW, cardH);
-                cardsOnPage++;
-            }
-
-            setIsPrinting(false);
-            doc.save('Cartoes_Bingo_Infantil.pdf');
-          };
-          // --- FIM Impressão ---
-
-
-          // --- Renderização da UI ---
-          const letter = getLetterForNumber(nextNumber);
-          const last5Called = calledNumbers.slice(-5).reverse();
-
-          return (
-            <div className="min-h-screen p-4 flex flex-col items-center">
-              
-              <PrintModal 
-                isOpen={isModalOpen} 
-                onClose={() => setIsModalOpen(false)} 
-                onGenerate={handleGenerateAndPrint} 
-              />
-              
-              {/* Container principal (mobile-first) */}
-              <div className="w-full max-w-md mx-auto bg-white shadow-2xl rounded-3xl p-6 flex flex-col gap-6">
-
-                <h1 className="text-4xl font-extrabold text-blue-600 text-center">
-                  Bingo Infantil
-                </h1>
-
-                {/* --- Secção do Sorteio --- */}
-                <div className="flex flex-col items-center gap-4">
-                  
-                  {/* O Número Sorteado */}
-                  <div className={`w-48 h-48 rounded-full flex flex-col items-center justify-center shadow-inner transition-colors duration-300 ${nextNumber === null ? 'bg-gray-200' : 'bg-yellow-400'}`}>
-                    {letter && (
-                      <span className="text-4xl font-bold text-black opacity-70">
-                        {letter}
-                      </span>
-                    )}
-                    <span className={`font-extrabold ${nextNumber === 'FIM!' ? 'text-4xl text-red-600' : 'text-8xl text-black'}`}>
-                      {nextNumber === null ? '...' : nextNumber}
-                    </span>
-                  </div>
-                  
-                  <p className="text-lg text-gray-500 font-semibold">
-                    Números em falta: {availableNumbers.length}
-                  </p>
-
-                  {/* Botões Principais */}
-                  <button
-                    onClick={callNextNumber}
-                    disabled={availableNumbers.length === 0}
-                    className="w-full py-4 bg-green-500 text-white font-bold text-2xl rounded-full shadow-lg hover:bg-green-600 transition duration-300 disabled:opacity-50 disabled:cursor-not-allowed transform active:scale-95"
-                  >
-                    {availableNumbers.length === TOTAL_NUMBERS ? 'COMEÇAR!' : 
-                     availableNumbers.length === 0 ? 'FIM!' : 'SORTEAR'}
-                  </button>
-                  <button
-                    onClick={handleReset}
-                    className="w-full py-3 bg-red-500 text-white font-semibold text-xl rounded-full shadow-lg hover:bg-red-600 transition duration-300 transform active:scale-95"
-                  >
-                    Reiniciar Jogo
-                  </button>
-                </div>
-
-                {/* --- Últimos Sorteados --- */}
-                {calledNumbers.length > 0 && (
-                  <div className="border-t-2 border-gray-100 pt-4">
-                    <h3 className="text-lg font-bold text-gray-600 mb-3 text-center">
-                      Últimos Sorteados:
-                    </h3>
-                    <div className="flex flex-wrap gap-2 justify-center">
-                      {last5Called.map((number, index) => (
-                        <div 
-                          key={index}
-                          className="w-12 h-12 bg-blue-500 text-white rounded-full flex items-center justify-center font-bold text-lg shadow-md"
-                        >
-                          {number}
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {/* --- Botão de Impressão --- */}
-                <div className="border-t-2 border-gray-100 pt-4 mt-2">
-                  <button
-                    onClick={() => setIsModalOpen(true)}
-                    disabled={isPrinting}
-                    className="w-full py-3 bg-purple-600 text-white font-bold text-xl rounded-full shadow-lg hover:bg-purple-700 transition duration-300 transform active:scale-95 disabled:opacity-50 disabled:cursor-wait"
-                  >
-                    {isPrinting ? 'A Gerar PDF...' : '🖨️ Imprimir Cartões'}
-                  </button>
-                </div>
-
-              </div>
-              
-              {/* O Container de Impressão Oculto */}
-              <div className="absolute -left-[9999px] top-0 w-0 h-0 overflow-hidden" aria-hidden="true">
-              {bingoCards.map((card, index) => (
-                  <BingoCardPrint 
-                      key={index} 
-                      cardData={card} 
-                      cardIndex={index} 
-                  />
-              ))}
-              </div>
-
-            </div>
-          );
-        };
-
-        // Renderizar a aplicação
-        // FIX: Remover a variável 'printRoot' não utilizada
-        // const printContainer = document.getElementById('print-container');
-        // const printRoot = ReactDOM.createRoot(printContainer);
-        
-        const appContainer = document.getElementById('root');
-        const appRoot = ReactDOM.createRoot(appContainer);
-        
-        // Renderizar o componente principal na div 'root'
-        appRoot.render(<App />);
+        // Montar a aplicação
+        app.mount('#app');
 
     </script>
 </body>
 </html>
-
